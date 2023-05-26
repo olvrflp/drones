@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:alpine
+    expose:
+      - 6379
+  app:
+    build: .
+    image: drones
+    command: node dist/main
+    environment:
+      - NODE_ENV=development
+      - REDIS_URL=redis://redis:6379
+      - PORT=3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - redis
+    links:
+      - redis
