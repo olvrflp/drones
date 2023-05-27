@@ -24,50 +24,36 @@
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+The project was implemented using [Nest](https://github.com/nestjs/nest), TypeScript, Docker and Redis as database.
 
-## Installation
+Tests are included but they are not unit test. They are end to end tests that run the whole application and
+then executes the requests just as the real world would do and then performs verifications on the responses.
+Both positive and negative cases are included.
+
+The tests are located in ```test/drones.e2e-spec.ts```.
+
+## Building the App
 
 ```bash
-$ npm install
+$ docker-compose build app
 ```
+This will create the docker image with the required stack.
 
-## Running the app
+## Running the App
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+$ docker-compose up -d
 ```
+The application will run on ```localhost:3000/```
 
 ## Test
 
 ```bash
-# unit tests
-$ npm run test
-
 # e2e tests
-$ npm run test:e2e
+$ docker-compose run --rm test npm run test:e2e
 
 # test coverage
-$ npm run test:cov
+$ docker-compose run --rm test npm run test:cov
 ```
 
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://kamilmysliwiec.com)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](LICENSE).
+The application will run initially with a fleet of 10 drones and the data can be checked at ```seeds/drones.seed.ts```

@@ -9,20 +9,24 @@ import { DroneState } from "../enums";
 
 @Injectable()
 export class DroneService implements OnModuleInit {
+  private readonly MINIMUM_USABLE_BATTERY = 25;
+
+  constructor(@InjectRedis() private readonly redisClient: Redis) { }
 
   onModuleInit() {
     droneFleet.forEach(drone => this.registerDrone(drone));
   }
 
-  private readonly MINIMUM_USABLE_BATTERY = 25;
-
-  constructor(@InjectRedis() private readonly redisClient: Redis) { }
-
-  async getAvailableDrones(): Promise<DroneDTO[]> {
+  async getAllDrones(): Promise<DroneDTO[]> {
     const drones = await this.redisClient.mget(await this.redisClient.keys("*"))
     return drones
       .map(value => plainToClass(DroneDTO, JSON.parse(value)))
-      .filter(drone => drone?.state === DroneState.IDLE)
+  }
+
+  async getAvailableDrones(): Promise<DroneDTO[]> {
+    const drones = await this.getAllDrones()
+
+    return drones.filter(drone => drone?.state === DroneState.IDLE);
   }
 
   async getDroneBySerial(serial: string): Promise<DroneDTO> {
