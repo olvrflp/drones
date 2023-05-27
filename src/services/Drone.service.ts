@@ -52,20 +52,26 @@ export class DroneService implements OnModuleInit {
 
   async loadDrone(droneSerial: string, load: MedicationDTO[]) {
     const droneToLoad = await this.getDroneBySerial(droneSerial);
+    await this.validateLoadIsPossible(droneToLoad, load);
+    return this.registerDrone({ ...droneToLoad, load })
+  }
 
+  async validateLoadIsPossible(droneToLoad, load) {
     if (!droneToLoad) {
       throw new BadRequestException({ message: "Drone not found" });
+    }
+
+    if (droneToLoad.state !== DroneState.IDLE) {
+      throw new ConflictException({ message: "The drone is not available for loads." });
     }
 
     if (droneToLoad.batteryCapacity < this.MINIMUM_USABLE_BATTERY) {
       throw new ConflictException({ message: "can't use the drone since is low on battery." });
     }
 
-    const loadWeight = load.reduce((acc, curr ) => acc + curr.weight, 0);
+    const loadWeight = load.reduce((acc: number, curr: MedicationDTO) => acc + curr.weight, 0);
     if (droneToLoad.weightLimitGrams < loadWeight) {
       throw new ConflictException({ message: "too much weight for the drone." })
     }
-
-    return this.registerDrone({ ...droneToLoad, load })
   }
 }

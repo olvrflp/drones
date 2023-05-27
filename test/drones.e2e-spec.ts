@@ -180,5 +180,17 @@ describe("Drones Management Tests", () => {
           message: "too much weight for the drone."
         });
     });
+
+    it("Test can't load a drone that is not Idle", () => {
+      const drone = droneFleet.find(drone => drone.state !== DroneState.IDLE);
+
+      return request(app.getHttpServer())
+        .put(`/drone/${drone.serialNumber}/load`)
+        .send([validMed])
+        .expect(409)
+        .expect({
+          message: "The drone is not available for loads."
+        });
+    });
   });
 });
