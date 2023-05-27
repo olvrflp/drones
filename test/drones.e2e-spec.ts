@@ -1,13 +1,13 @@
-import { INestApplication } from "@nestjs/common";
+import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test, TestingModule } from "@nestjs/testing";
-import { DroneController } from "../controllers/Drone.controller";
-import { DroneDTO } from "../DTOs/Drone.dto";
-import { DroneModel, DroneState } from "../enums";
+import { DroneDTO } from "../src/DTOs/Drone.dto";
+import { DroneModel, DroneState } from "../src/enums";
 import * as request from 'supertest';
-import { droneFleet } from "../seeds/drones.seed";
+import { droneFleet } from "../src/seeds/drones.seed";
 import { validate } from "class-validator";
 import { plainToClass } from "class-transformer";
-import { MedicationDTO } from "../DTOs/Medication.dto";
+import { MedicationDTO } from "../src/DTOs/Medication.dto";
+import { AppModule } from "../src/app.module";
 
 describe("Drones Management Tests", () => {
   let app: INestApplication;
@@ -22,11 +22,12 @@ describe("Drones Management Tests", () => {
   }
 
   beforeAll(async () => {
-    const moduleRef: TestingModule = await Test.createTestingModule({
-      controllers: [DroneController],
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
     }).compile();
 
-    app = moduleRef.createNestApplication();
+    app = moduleFixture.createNestApplication();
+    app.useGlobalPipes(new ValidationPipe());
     await app.init();
   });
 
@@ -40,17 +41,18 @@ describe("Drones Management Tests", () => {
       return request(app.getHttpServer())
         .get(`/drone/${firstDrone.serialNumber}`)
         .expect(200)
-        .expect({
-          data: firstDrone
-        })
+        .expect(firstDrone)
     });
 
     it("test get available drones", () => {
+      const expectedDrones = droneFleet.filter(
+        drone => drone.state === DroneState.IDLE && drone.serialNumber !== dummy.serialNumber
+      )
       return request(app.getHttpServer())
         .get(`/drone`)
         .expect(200)
-        .expect({
-          data: droneFleet.filter(drone => drone.state === DroneState.IDLE)
+        .expect((res) => {
+          expect(res.body).toEqual(expect.arrayContaining(expectedDrones))
         })
     });
 
@@ -59,19 +61,16 @@ describe("Drones Management Tests", () => {
       return request(app.getHttpServer())
         .get(`/drone/${firstDrone.serialNumber}/load`)
         .expect(200)
-        .expect({
-          data: firstDrone.load
-        })
+        .expect(firstDrone.load)
     });
 
     it("test get drone battery level", () => {
       const firstDrone = droneFleet[0];
-      return request(app.getHttpServer())
+      const { batteryCapacity } = firstDrone;
+      request(app.getHttpServer())
         .get(`/drone/${firstDrone.serialNumber}/batteryLevel`)
         .expect(200)
-        .expect({
-          data: firstDrone.batteryCapacity
-        })
+        .expect({ batteryCapacity })
     });
 
     it("test register a drone", () => {
@@ -79,15 +78,13 @@ describe("Drones Management Tests", () => {
         .post(`/drone`)
         .send(dummy)
         .expect(201)
-        .expect({
-          data: dummy
-        })
+        .expect(dummy)
     });
 
     it("test load a drone", () => {
       const availableDrone = droneFleet.find(drone => drone.state == DroneState.IDLE )
       const medications = [{
-        name: "Ibuprofen 500mg x 10",
+        name: "Ibuprofen500mgx10",
         weight: 150,
         code: "IBF_500_10",
         image: "https://www.google.com"
@@ -97,21 +94,19 @@ describe("Drones Management Tests", () => {
         .put(`/drone/${availableDrone.serialNumber}/load`)
         .send(medications)
         .expect(200)
-        .expect({
-          data: { ...availableDrone, load: medications }
-        })
+        .expect({ ...availableDrone, load: medications })
     });
   });
 
   describe("Validations for fields", () => {
     const validMed: MedicationDTO = {
-      name: "Aspirina 500",
+      name: "Aspirina500",
       weight: 50,
       code: "ASP500",
       image: "https://www.bayer.com/"
     };
 
-    it("Test can't register a drone with invalid information", () => {
+    it("Test can't register a drone with invalid information", async () => {
       const dummy = {
         serialNumber: "1",
         model: "DJI Mini",
@@ -120,30 +115,40 @@ describe("Drones Management Tests", () => {
         state: "Unavailable"
       };
 
-      return request(app.getHttpServer())
+      const errors = await validate(plainToClass(DroneDTO, dummy))
+      request(app.getHttpServer())
         .post("/drone")
         .send(dummy)
         .expect(400)
-        .expect({
-          messages: validate(plainToClass(DroneDTO, dummy))
+        .end((err, res) => {
+          expect(res.body)
+          .toEqual(
+            expect.objectContaining({
+              message: errors.map(error => Object.values(error.constraints)).flat()
+            })
+          )
         });
     });
 
-    it("Test can't load medication with invalid information", () => {
+    it("Test can't load medication with invalid information", async () => {
       const dummyMed = {
-        name: "@$%&_asew",
+        name: "@$%&_ asew",
         weight: "350g",
         code: "asb#£&",
         image: "not a link"
       };
       const drone = droneFleet.find(drone => drone.state === DroneState.IDLE);
 
-      return request(app.getHttpServer())
+      const errors = await validate(plainToClass(MedicationDTO, dummyMed));
+      request(app.getHttpServer())
         .put(`/drone/${drone.serialNumber}/load`)
         .send([dummyMed])
         .expect(400)
-        .expect({
-          messages: validate(plainToClass(DroneDTO, dummy))
+        .end((_err, res) => {
+          expect(res.body)
+            .toEqual(expect.objectContaining({
+              message: errors.map(error => Object.values(error.constraints)).flat()
+            }))
         });
     });
 
@@ -155,7 +160,7 @@ describe("Drones Management Tests", () => {
         .send([validMed])
         .expect(409)
         .expect({
-          messages: "can't use the drone since is low on battery."
+          message: "can't use the drone since is low on battery."
         });
     });
 
@@ -172,7 +177,7 @@ describe("Drones Management Tests", () => {
         .send(medications)
         .expect(409)
         .expect({
-          messages: "too much weight for the drone."
+          message: "too much weight for the drone."
         });
     });
   });

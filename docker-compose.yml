@@ -8,7 +8,7 @@ services:
   app:
     build: .
     image: drones
-    command: node dist/main
+    command: npm run start:dev
     environment:
       - NODE_ENV=development
       - REDIS_URL=redis://redis:6379
@@ -19,3 +19,17 @@ services:
       - redis
     links:
       - redis
+    volumes:
+      - .:/app
+  test:
+    build: .
+    image: drones
+    environment:
+      - NODE_ENV=test
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    links:
+      - redis
+    volumes:
+      - .:/app
